@@ -1,3 +1,4 @@
+
 name: Build Android APK
 on:
   push:
@@ -12,10 +13,16 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
+        
+    - name: Create missing gradlew engine (Magic Step)
+      run: gradle wrapper
+      
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
+      
     - name: Build with Gradle
       run: ./gradlew assembleDebug
+      
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
