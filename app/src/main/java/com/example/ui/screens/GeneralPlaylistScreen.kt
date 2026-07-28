@@ -87,6 +87,17 @@ fun GeneralPlaylistScreen(
                     viewModel.addGeneralTrack("", "", 0)
                 }
                 selectedList.forEach { uri ->
+                    
+                    // PERMANENT PERMISSION ADDED HERE
+                    try {
+                        context.contentResolver.takePersistableUriPermission(
+                            uri,
+                            android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        )
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+
                     val fileName = getFileName(context, uri) ?: "Audio Track ${tracks.size + 1}"
                     viewModel.addGeneralTrack(fileName, uri.toString(), 0)
                 }
