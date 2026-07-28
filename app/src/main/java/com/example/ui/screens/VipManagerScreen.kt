@@ -84,7 +84,6 @@ fun VipManagerScreen(
     var showAddDialog by remember { mutableStateOf(false) }
     var selectedVipForAudioAssign by remember { mutableStateOf<VipContact?>(null) }
 
-    // System Contact Picker Launcher
     val contactPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickContact()
     ) { contactUri ->
@@ -95,14 +94,12 @@ fun VipManagerScreen(
         }
     }
 
-    // Audio File Launcher for VIP track assignment
+    // FIX: Changed to OpenDocument for Permanent Permission
     val audioPickerForVipLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+        contract = ActivityResultContracts.OpenDocument()
     ) { audioUri ->
         selectedVipForAudioAssign?.let { vip ->
             if (audioUri != null) {
-                
-                // PERMANENT PERMISSION ADDED HERE
                 try {
                     context.contentResolver.takePersistableUriPermission(
                         audioUri,
@@ -134,7 +131,6 @@ fun VipManagerScreen(
             )
         }
 
-        // Limit Banner
         item {
             LimitNoticeCard(
                 currentCount = vipContacts.size,
@@ -143,7 +139,6 @@ fun VipManagerScreen(
             )
         }
 
-        // Priority Explanation Banner
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -185,7 +180,6 @@ fun VipManagerScreen(
             }
         }
 
-        // Action buttons
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -194,7 +188,7 @@ fun VipManagerScreen(
                 Button(
                     onClick = {
                         if (vipContacts.size >= maxLimit) {
-                            viewModel.addVipContact("", "", "") // Triggers limit error in VM
+                            viewModel.addVipContact("", "", "") 
                         } else {
                             try {
                                 contactPickerLauncher.launch(null)
@@ -242,12 +236,11 @@ fun VipManagerScreen(
             }
         }
 
-        // VIP Contacts List or Empty State
         if (vipContacts.isEmpty()) {
             item {
                 EmptyStateCard(
                     title = "No VIP Contacts Added",
-                    description = "Pick up to 5 VIP contacts from your phonebook and assign a unique ringtone for each caller.",
+                    description = "Pick up to 5 VIP contacts and assign a unique ringtone.",
                     icon = Icons.Default.StarBorder,
                     actionLabel = "Add Demo VIP Contact",
                     onAction = {
@@ -262,7 +255,8 @@ fun VipManagerScreen(
                     isPreviewing = uiState.previewingUri == vip.audioUriString,
                     onAssignAudio = {
                         selectedVipForAudioAssign = vip
-                        audioPickerForVipLauncher.launch("audio/*")
+                        // FIX: OpenDocument requires an Array of Mime Types
+                        audioPickerForVipLauncher.launch(arrayOf("audio/*"))
                     },
                     onAssignPresetRingtone = {
                         assignSampleSystemRingtone(context, viewModel, vip)
@@ -287,7 +281,6 @@ fun VipManagerScreen(
         }
     }
 
-    // Manual Contact Dialog
     if (showAddDialog) {
         AddVipContactDialog(
             onDismiss = { showAddDialog = false },
@@ -375,7 +368,6 @@ fun VipContactCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Assigned Audio Track Box
             Surface(
                 color = if (vip.audioUriString != null) NeonViolet.copy(alpha = 0.15f) else Color.Black.copy(alpha = 0.2f),
                 shape = RoundedCornerShape(12.dp),
@@ -391,7 +383,7 @@ fun VipContactCard(
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.weight(1f)
-                    ) {
+                        ) {
                         Icon(
                             imageVector = Icons.Default.MusicNote,
                             contentDescription = null,
