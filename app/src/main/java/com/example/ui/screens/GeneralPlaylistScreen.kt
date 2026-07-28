@@ -71,24 +71,20 @@ fun GeneralPlaylistScreen(
     val tracks = uiState.generalTracks
     val maxLimit = 10
 
-    // Multi-audio document picker launcher
+    // FIX: Changed from GetMultipleContents to OpenMultipleDocuments for Persistable Permission
     val audioPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetMultipleContents()
+        contract = ActivityResultContracts.OpenMultipleDocuments()
     ) { uris ->
         if (uris.isNotEmpty()) {
             val remainingSlots = maxLimit - tracks.size
             if (remainingSlots <= 0) {
-                // Limit already reached! Handled in VM as well.
-                viewModel.addGeneralTrack("", "", 0) // Triggers error message in VM
+                viewModel.addGeneralTrack("", "", 0) 
             } else {
                 val selectedList = uris.take(remainingSlots)
                 if (uris.size > remainingSlots) {
-                    // Let user know some were skipped due to limit
                     viewModel.addGeneralTrack("", "", 0)
                 }
                 selectedList.forEach { uri ->
-                    
-                    // PERMANENT PERMISSION ADDED HERE
                     try {
                         context.contentResolver.takePersistableUriPermission(
                             uri,
@@ -120,7 +116,6 @@ fun GeneralPlaylistScreen(
             )
         }
 
-        // Limit Indicator Card
         item {
             LimitNoticeCard(
                 currentCount = tracks.size,
@@ -129,7 +124,6 @@ fun GeneralPlaylistScreen(
             )
         }
 
-        // Playback Order Toggle Control Card
         item {
             PlaybackModeCard(
                 currentMode = uiState.config.playbackMode,
@@ -137,7 +131,6 @@ fun GeneralPlaylistScreen(
             )
         }
 
-        // Add Audio Button Row
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -145,7 +138,8 @@ fun GeneralPlaylistScreen(
             ) {
                 Button(
                     onClick = {
-                        audioPickerLauncher.launch("audio/*")
+                        // FIX: OpenMultipleDocuments requires an Array of Mime Types
+                        audioPickerLauncher.launch(arrayOf("audio/*"))
                     },
                     enabled = tracks.size < maxLimit,
                     modifier = Modifier.weight(1f),
@@ -173,12 +167,11 @@ fun GeneralPlaylistScreen(
             }
         }
 
-        // Tracks List or Empty State
         if (tracks.isEmpty()) {
             item {
                 EmptyStateCard(
                     title = "General Playlist is Empty",
-                    description = "Select up to 10 audio files (.mp3, .wav) from device storage or add sample ringtone presets to get started.",
+                    description = "Select up to 10 audio files (.mp3, .wav) from device storage.",
                     icon = Icons.Default.MusicNote,
                     actionLabel = "Add Sample Ringtone Presets",
                     onAction = {
@@ -232,7 +225,6 @@ fun PlaybackModeCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Sequential Option
                 Surface(
                     onClick = { onModeChange("SEQUENTIAL") },
                     shape = RoundedCornerShape(12.dp),
@@ -256,7 +248,7 @@ fun PlaybackModeCard(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Sequential (1,2,3..)",
+                            text = "Sequential",
                             fontSize = 12.sp,
                             fontWeight = if (currentMode == "SEQUENTIAL") FontWeight.Bold else FontWeight.Normal,
                             color = if (currentMode == "SEQUENTIAL") NeonViolet else MaterialTheme.colorScheme.onSurface
@@ -264,7 +256,6 @@ fun PlaybackModeCard(
                     }
                 }
 
-                // Random Option
                 Surface(
                     onClick = { onModeChange("RANDOM") },
                     shape = RoundedCornerShape(12.dp),
@@ -288,7 +279,7 @@ fun PlaybackModeCard(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Random Order",
+                            text = "Random",
                             fontSize = 12.sp,
                             fontWeight = if (currentMode == "RANDOM") FontWeight.Bold else FontWeight.Normal,
                             color = if (currentMode == "RANDOM") NeonCyan else MaterialTheme.colorScheme.onSurface
@@ -348,7 +339,7 @@ fun GeneralTrackRow(
                         maxLines = 1
                     )
                     Text(
-                        text = if (isPreviewing) "Playing Preview..." else "Audio File (.mp3 / .wav)",
+                        text = if (isPreviewing) "Playing Preview..." else "Audio File",
                         fontSize = 11.sp,
                         color = if (isPreviewing) NeonGreen else MaterialTheme.colorScheme.onSurfaceVariant
                     )
