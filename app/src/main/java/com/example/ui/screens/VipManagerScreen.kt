@@ -101,6 +101,17 @@ fun VipManagerScreen(
     ) { audioUri ->
         selectedVipForAudioAssign?.let { vip ->
             if (audioUri != null) {
+                
+                // PERMANENT PERMISSION ADDED HERE
+                try {
+                    context.contentResolver.takePersistableUriPermission(
+                        audioUri,
+                        android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+
                 val fileName = getFileName(context, audioUri) ?: "VIP Custom Ringtone"
                 viewModel.assignAudioToVip(vip.id, fileName, audioUri.toString())
             }
