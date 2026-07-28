@@ -1,13 +1,11 @@
 package com.example.service
 
 import android.app.Notification
-import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.media.AudioAttributes
-import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.MediaPlayer
 import android.net.Uri
@@ -17,7 +15,6 @@ import android.telephony.TelephonyManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.MainActivity
-import com.example.R
 import com.example.RingtoneApplication
 import com.example.data.GeneralTrack
 import com.example.data.RingtoneRepository
@@ -35,8 +32,6 @@ class RingtonePlaybackService : Service() {
 
     private var mediaPlayer: MediaPlayer? = null
     private var audioManager: AudioManager? = null
-    private var originalRingVolume: Int = -1
-    private var audioFocusRequest: AudioFocusRequest? = null
 
     private lateinit var repository: RingtoneRepository
 
@@ -71,7 +66,7 @@ class RingtonePlaybackService : Service() {
                 return@launch
             }
 
-            // Save original ring volume & mute default ringtone stream
+            // Save original ring volume permanently & mute system stream
             muteSystemRingtone()
 
             val vipContacts = repository.getVipContactsSync()
@@ -85,13 +80,10 @@ class RingtonePlaybackService : Service() {
             var callerDisplayName = matchedVip?.name ?: if (incomingNumber.isNotBlank()) incomingNumber else "Unknown Caller"
 
             if (matchedVip != null && !matchedVip.audioUriString.isNull_or_blank()) {
-                // VIP match found with assigned song
                 isVipCall = true
                 selectedAudioUri = Uri.parse(matchedVip.audioUriString)
                 selectedAudioTitle = matchedVip.audioTitle ?: "VIP Custom Ringtone"
-                Log.d(TAG, "VIP Call matched: ${matchedVip.name}, track: $selectedAudioTitle")
             } else if (generalTracks.isNotEmpty()) {
-                // Non-VIP or VIP without track -> Pick from General Playlist
                 val trackToPlay = selectGeneralTrack(config.playbackMode, config.lastPlayedIndex, generalTracks)
                 if (trackToPlay != null) {
                     selectedAudioUri = Uri.parse(trackToPlay.uriString)
@@ -99,13 +91,11 @@ class RingtonePlaybackService : Service() {
                 }
             }
 
-            // Fallback if no custom track is available
             if (selectedAudioUri == null) {
                 selectedAudioUri = android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_RINGTONE)
                 selectedAudioTitle = "System Default Tone"
             }
 
-            // Log call record in DB
             repository.logCall(
                 phoneNumber = incomingNumber.ifBlank { "Unknown" },
                 callerName = matchedVip?.name,
@@ -113,7 +103,6 @@ class RingtonePlaybackService : Service() {
                 ringtoneName = selectedAudioTitle
             )
 
-            // Start notification and audio playback on main thread
             withContext(Dispatchers.Main) {
                 val notification = createNotification(callerDisplayName, selectedAudioTitle, isVipCall)
                 startForeground(NOTIFICATION_ID, notification)
@@ -153,25 +142,36 @@ class RingtonePlaybackService : Service() {
         }
     }
 
+    // NAYA LOGIC: Volume ko permanent memory mein save karna
     private fun muteSystemRingtone() {
         try {
             audioManager?.let { am ->
-                if (originalRingVolume == -1) {
-                    originalRingVolume = am.getStreamVolume(AudioManager.STREAM_RING)
+                val prefs = getSharedPreferences("ringtone_prefs", Context.MODE_PRIVATE)
+                val currentVol = am.getStreamVolume(AudioManager.STREAM_RING)
+                
+                // Volume agar 0 se zyada hai, tabhi save karein
+                if (currentVol > 0) {
+                    prefs.edit().putInt("original_ring_volume", currentVol).apply()
+                    am.setStreamVolume(AudioManager.STREAM_RING, 0, 0)
+                    Log.d(TAG, "Muted system ringtone. Original volume ($currentVol) saved.")
                 }
-                am.setStreamVolume(AudioManager.STREAM_RING, 0, 0)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error muting system ringtone", e)
         }
     }
 
+    // NAYA LOGIC: Volume ko permanent memory se nikal kar wapas restore karna
     private fun restoreSystemRingtone() {
         try {
             audioManager?.let { am ->
-                if (originalRingVolume != -1) {
-                    am.setStreamVolume(AudioManager.STREAM_RING, originalRingVolume, 0)
-                    originalRingVolume = -1
+                val prefs = getSharedPreferences("ringtone_prefs", Context.MODE_PRIVATE)
+                val savedVol = prefs.getInt("original_ring_volume", -1)
+                
+                if (savedVol > 0) {
+                    am.setStreamVolume(AudioManager.STREAM_RING, savedVol, 0)
+                    prefs.edit().remove("original_ring_volume").apply()
+                    Log.d(TAG, "Restored system ringtone to volume: $savedVol")
                 }
             }
         } catch (e: Exception) {
@@ -185,7 +185,7 @@ class RingtonePlaybackService : Service() {
             mediaPlayer = MediaPlayer().apply {
                 setAudioAttributes(
                     AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                        .setUsage(AudioAttributes.USAGE_ALARM) // Alarm Stream Use Kiya Gaya Hai
                         .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
                         .build()
                 )
@@ -197,13 +197,12 @@ class RingtonePlaybackService : Service() {
             Log.d(TAG, "Playing ringtone audio: $uri")
         } catch (e: Exception) {
             Log.e(TAG, "Error initializing MediaPlayer for URI $uri", e)
-            // Fallback to default ringtone if custom track fails to load
             try {
                 val defaultUri = android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_RINGTONE)
                 mediaPlayer = MediaPlayer().apply {
                     setAudioAttributes(
                         AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                            .setUsage(AudioAttributes.USAGE_ALARM)
                             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                             .build()
                     )
@@ -262,7 +261,7 @@ class RingtonePlaybackService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         stopPlaybackOnly()
-        restoreSystemRingtone()
+        restoreSystemRingtone() // Ek baar yahan bhi ensure karega
         serviceJob.cancel()
     }
 
