@@ -1,0 +1,6 @@
+{
+  "name": "Dynamic Ringtone Mixer",
+  "description": "Custom dynamic ringtone playlist and VIP contact ringtone switcher on incoming calls.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
