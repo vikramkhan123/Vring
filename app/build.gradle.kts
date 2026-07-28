@@ -31,12 +31,7 @@ android {
       keyAlias = "upload"
       keyPassword = System.getenv("KEY_PASSWORD")
     }
-    create("debugConfig") {
-      storeFile = file("${rootDir}/debug.keystore")
-      storePassword = "android"
-      keyAlias = "androiddebugkey"
-      keyPassword = "android"
-    }
+    // "debugConfig" wala block yahan se hata diya gaya hai taaki GitHub par error na aaye
   }
 
   buildTypes {
@@ -46,7 +41,9 @@ android {
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       signingConfig = signingConfigs.getByName("release")
     }
-    debug { signingConfig = signingConfigs.getByName("debugConfig") }
+    debug { 
+      // debugConfig ka reference bhi yahan se hata diya gaya hai
+    }
   }
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11
