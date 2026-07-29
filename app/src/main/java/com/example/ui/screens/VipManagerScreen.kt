@@ -5,6 +5,7 @@ import android.media.RingtoneManager
 import android.net.Uri
 import android.provider.ContactsContract
 import android.provider.OpenableColumns
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -94,7 +95,6 @@ fun VipManagerScreen(
         }
     }
 
-    // FIX: Changed to OpenDocument for Permanent Permission
     val audioPickerForVipLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { audioUri ->
@@ -255,7 +255,6 @@ fun VipManagerScreen(
                     isPreviewing = uiState.previewingUri == vip.audioUriString,
                     onAssignAudio = {
                         selectedVipForAudioAssign = vip
-                        // FIX: OpenDocument requires an Array of Mime Types
                         audioPickerForVipLauncher.launch(arrayOf("audio/*"))
                     },
                     onAssignPresetRingtone = {
@@ -383,7 +382,7 @@ fun VipContactCard(
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.weight(1f)
-                        ) {
+                    ) {
                         Icon(
                             imageVector = Icons.Default.MusicNote,
                             contentDescription = null,
@@ -524,35 +523,44 @@ private fun extractContactDetails(context: Context, contactUri: Uri): Triple<Str
     var name = ""
     var number = ""
 
-    val cursor = context.contentResolver.query(contactUri, null, null, null, null)
-    cursor?.use { c ->
-        if (c.moveToFirst()) {
-            val idIndex = c.getColumnIndex(ContactsContract.Contacts._ID)
-            val nameIndex = c.getColumnIndex(ContactsContract.Contacts.DISPLAY_NAME)
-            val hasPhoneIndex = c.getColumnIndex(ContactsContract.Contacts.HAS_PHONE_NUMBER)
+    try {
+        val cursor = context.contentResolver.query(contactUri, null, null, null, null)
+        cursor?.use { c ->
+            if (c.moveToFirst()) {
+                val idIndex = c.getColumnIndex(ContactsContract.Contacts._ID)
+                val nameIndex = c.getColumnIndex(ContactsContract.Contacts.DISPLAY_NAME)
+                val hasPhoneIndex = c.getColumnIndex(ContactsContract.Contacts.HAS_PHONE_NUMBER)
 
-            if (idIndex != -1) contactId = c.getString(idIndex)
-            if (nameIndex != -1) name = c.getString(nameIndex) ?: "VIP Contact"
+                if (idIndex != -1) contactId = c.getString(idIndex)
+                if (nameIndex != -1) name = c.getString(nameIndex) ?: "VIP Contact"
 
-            val hasPhone = if (hasPhoneIndex != -1) c.getInt(hasPhoneIndex) else 0
-            if (hasPhone > 0) {
-                val phoneCursor = context.contentResolver.query(
-                    ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
-                    null,
-                    "${ContactsContract.CommonDataKinds.Phone.CONTACT_ID} = ?",
-                    arrayOf(contactId),
-                    null
-                )
-                phoneCursor?.use { pc ->
-                    if (pc.moveToFirst()) {
-                        val numIndex = pc.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
-                        if (numIndex != -1) {
-                            number = pc.getString(numIndex)
+                val hasPhone = if (hasPhoneIndex != -1) c.getInt(hasPhoneIndex) else 0
+                if (hasPhone > 0) {
+                    val phoneCursor = context.contentResolver.query(
+                        ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                        null,
+                        "${ContactsContract.CommonDataKinds.Phone.CONTACT_ID} = ?",
+                        arrayOf(contactId),
+                        null
+                    )
+                    phoneCursor?.use { pc ->
+                        if (pc.moveToFirst()) {
+                            val numIndex = pc.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                            if (numIndex != -1) {
+                                number = pc.getString(numIndex)
+                            }
                         }
                     }
                 }
             }
         }
+    } catch (e: SecurityException) {
+        e.printStackTrace()
+        Toast.makeText(context, "Permission Denied! Contacts permission allow karein.", Toast.LENGTH_LONG).show()
+        return null
+    } catch (e: Exception) {
+        e.printStackTrace()
+        return null
     }
 
     return if (name.isNotBlank() && number.isNotBlank()) {
