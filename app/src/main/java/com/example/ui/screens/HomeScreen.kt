@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -48,6 +49,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -86,7 +88,6 @@ fun HomeScreen(
     val context = LocalContext.current
     var simInputNumber by remember { mutableStateOf("+15551234567") }
 
-    // Required permissions launcher
     val requiredPermissions = remember {
         val permissions = mutableListOf(
             Manifest.permission.READ_PHONE_STATE,
@@ -111,6 +112,16 @@ fun HomeScreen(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
         permissionsGranted = results.values.all { it }
+        if (!permissionsGranted) {
+            Toast.makeText(context, "Permissions are required for the app to function properly!", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    // NEW LOGIC: Auto-ask for permissions on app start
+    LaunchedEffect(Unit) {
+        if (!permissionsGranted) {
+            permissionLauncher.launch(requiredPermissions)
+        }
     }
 
     LazyColumn(
@@ -127,7 +138,6 @@ fun HomeScreen(
             )
         }
 
-        // Active Overview Summary
         item {
             OverviewSummaryGrid(
                 generalCount = uiState.generalTracks.size,
@@ -136,7 +146,6 @@ fun HomeScreen(
             )
         }
 
-        // Permissions Card if not fully granted
         if (!permissionsGranted) {
             item {
                 PermissionsCard(
@@ -147,7 +156,6 @@ fun HomeScreen(
             }
         }
 
-        // Call Simulation Tool for Live Testing
         item {
             CallSimulatorCard(
                 isSimulating = uiState.isSimulatingCall,
@@ -164,7 +172,6 @@ fun HomeScreen(
             )
         }
 
-        // Recent Intercepted Call Logs
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -218,10 +225,7 @@ fun HomeScreen(
 }
 
 @Composable
-fun HeroHeaderCard(
-    masterEnabled: Boolean,
-    onToggleMaster: (Boolean) -> Unit
-) {
+fun HeroHeaderCard(masterEnabled: Boolean, onToggleMaster: (Boolean) -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
@@ -232,11 +236,7 @@ fun HeroHeaderCard(
                 .fillMaxWidth()
                 .background(
                     brush = Brush.horizontalGradient(
-                        colors = if (masterEnabled) {
-                            listOf(Color(0xFF3B0764), Color(0xFF1E1B4B))
-                        } else {
-                            listOf(Color(0xFF1F2937), Color(0xFF111827))
-                        }
+                        colors = if (masterEnabled) listOf(Color(0xFF3B0764), Color(0xFF1E1B4B)) else listOf(Color(0xFF1F2937), Color(0xFF111827))
                     )
                 )
                 .padding(20.dp)
@@ -279,10 +279,7 @@ fun HeroHeaderCard(
                     }
                     StatusBadge(active = masterEnabled)
                 }
-
                 Spacer(modifier = Modifier.height(20.dp))
-
-                // Master Toggle Switch Row
                 Surface(
                     color = Color.Black.copy(alpha = 0.3f),
                     shape = RoundedCornerShape(16.dp),
@@ -335,16 +332,11 @@ fun HeroHeaderCard(
 }
 
 @Composable
-fun OverviewSummaryGrid(
-    generalCount: Int,
-    vipCount: Int,
-    playbackMode: String
-) {
+fun OverviewSummaryGrid(generalCount: Int, vipCount: Int, playbackMode: String) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // General Playlist Stat Card
         Card(
             modifier = Modifier.weight(1f),
             shape = RoundedCornerShape(16.dp),
@@ -383,8 +375,6 @@ fun OverviewSummaryGrid(
                 )
             }
         }
-
-        // VIP Stat Card
         Card(
             modifier = Modifier.weight(1f),
             shape = RoundedCornerShape(16.dp),
@@ -473,16 +463,13 @@ fun CallSimulatorCard(
                     StatusBadge(active = true, activeText = "RINGING")
                 }
             }
-
             Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = "Simulate an incoming call directly inside the app to test instantaneous ringtone switching and muting logic.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-
             Spacer(modifier = Modifier.height(12.dp))
-
             if (isSimulating) {
                 Surface(
                     color = Color(0xFF831843),
@@ -528,9 +515,7 @@ fun CallSimulatorCard(
                         unfocusedBorderColor = MaterialTheme.colorScheme.outline
                     )
                 )
-
                 Spacer(modifier = Modifier.height(12.dp))
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -543,7 +528,6 @@ fun CallSimulatorCard(
                     ) {
                         Text("Simulate Call", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
-
                     if (vipContacts.isNotEmpty()) {
                         OutlinedButton(
                             onClick = {
