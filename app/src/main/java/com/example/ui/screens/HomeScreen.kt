@@ -111,139 +111,218 @@ fun HomeScreen(
         mutableStateOf(checkAllPermissions(context, requiredPermissions))
     }
 
+    var batteryOptimizationIgnored by remember {
+        mutableStateOf(checkBatteryOptimization(context))
+    }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
         permissionsGranted = results.values.all { it }
         if (!permissionsGranted) {
-            Toast.makeText(context, "Permissions are required for the app to function properly!", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "App ko chalane ke liye saari permissions dena anivarya hai!", Toast.LENGTH_LONG).show()
         }
     }
 
-    // App shulte hi permissions aur battery optimization check aur prompt karna
+    // Har baar app foreground mein aane par check karega ki permissions hain ya nahi
     LaunchedEffect(Unit) {
+        permissionsGranted = checkAllPermissions(context, requiredPermissions)
+        batteryOptimizationIgnored = checkBatteryOptimization(context)
+        
         if (!permissionsGranted) {
             permissionLauncher.launch(requiredPermissions)
-        }
-        
-        // Check Battery Optimization
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
-            if (!powerManager.isIgnoringBatteryOptimizations(context.packageName)) {
-                try {
-                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                        data = Uri.parse("package:${context.packageName}")
-                    }
-                    context.startActivity(intent)
-                } catch (e: Exception) {
-                    // Fallback to general battery settings if direct request fails
-                    try {
-                        val fallbackIntent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                        context.startActivity(fallbackIntent)
-                    } catch (ex: Exception) {
-                        ex.printStackTrace()
-                    }
-                }
-            }
+        } else if (!batteryOptimizationIgnored) {
+            requestBatteryOptimizationExemption(context)
         }
     }
 
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        item {
-            Spacer(modifier = Modifier.height(8.dp))
-            HeroHeaderCard(
-                masterEnabled = uiState.config.masterEnabled,
-                onToggleMaster = { viewModel.toggleMasterEnabled(it) }
-            )
-        }
-
-        item {
-            OverviewSummaryGrid(
-                generalCount = uiState.generalTracks.size,
-                vipCount = uiState.vipContacts.size,
-                playbackMode = uiState.config.playbackMode
-            )
-        }
-
-        if (!permissionsGranted) {
+    Box(modifier = modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
             item {
-                PermissionsCard(
-                    onRequestPermissions = {
-                        permissionLauncher.launch(requiredPermissions)
+                Spacer(modifier = Modifier.height(8.dp))
+                HeroHeaderCard(
+                    masterEnabled = uiState.config.masterEnabled,
+                    onToggleMaster = { viewModel.toggleMasterEnabled(it) }
+                )
+            }
+
+            item {
+                OverviewSummaryGrid(
+                    generalCount = uiState.generalTracks.size,
+                    vipCount = uiState.vipContacts.size,
+                    playbackMode = uiState.config.playbackMode
+                )
+            }
+
+            item {
+                CallSimulatorCard(
+                    isSimulating = uiState.isSimulatingCall,
+                    simulatedNumber = uiState.simulatedNumber,
+                    simInputNumber = simInputNumber,
+                    onNumberChange = { simInputNumber = it },
+                    vipContacts = uiState.vipContacts,
+                    onSimulateCall = { number ->
+                        viewModel.simulateIncomingCall(context, number)
+                    },
+                    onStopCall = {
+                        viewModel.stopSimulatedCall(context)
                     }
                 )
             }
-        }
 
-        item {
-            CallSimulatorCard(
-                isSimulating = uiState.isSimulatingCall,
-                simulatedNumber = uiState.simulatedNumber,
-                simInputNumber = simInputNumber,
-                onNumberChange = { simInputNumber = it },
-                vipContacts = uiState.vipContacts,
-                onSimulateCall = { number ->
-                    viewModel.simulateIncomingCall(context, number)
-                },
-                onStopCall = {
-                    viewModel.stopSimulatedCall(context)
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    SectionHeader(
+                        title = "Intercepted Calls Log",
+                        subtitle = "History of custom ringtones played",
+                        icon = Icons.Default.SwapCalls,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (uiState.callLogs.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.clearCallLogs() }) {
+                            Icon(
+                                imageVector = Icons.Default.DeleteSweep,
+                                contentDescription = "Clear logs",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
-            )
-        }
+            }
 
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                SectionHeader(
-                    title = "Intercepted Calls Log",
-                    subtitle = "History of custom ringtones played",
-                    icon = Icons.Default.SwapCalls,
-                    modifier = Modifier.weight(1f)
-                )
-                if (uiState.callLogs.isNotEmpty()) {
-                    IconButton(onClick = { viewModel.clearCallLogs() }) {
-                        Icon(
-                            imageVector = Icons.Default.DeleteSweep,
-                            contentDescription = "Clear logs",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+            if (uiState.callLogs.isEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = "No incoming calls intercepted yet.\nUse the simulator above to test custom ringtones!",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(16.dp),
+                            fontSize = 13.sp
                         )
                     }
                 }
-            }
-        }
-
-        if (uiState.callLogs.isEmpty()) {
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text(
-                        text = "No incoming calls intercepted yet.\nUse the simulator above to test custom ringtones!",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(16.dp),
-                        fontSize = 13.sp
-                    )
+            } else {
+                items(uiState.callLogs, key = { it.id }) { log ->
+                    CallLogRow(log = log)
                 }
             }
-        } else {
-            items(uiState.callLogs, key = { it.id }) { log ->
-                CallLogRow(log = log)
+
+            item {
+                Spacer(modifier = Modifier.height(24.dp))
             }
         }
 
-        item {
-            Spacer(modifier = Modifier.height(24.dp))
+        // MANDATORY OVERLAY LOCK: Jab tak permissions ya battery optimization nahi milegi, ye screen ke upar rahega aur user kuch touch nahi kar payega
+        if (!permissionsGranted || !batteryOptimizationIgnored) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.90f))
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1F2937))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Security,
+                            contentDescription = null,
+                            tint = NeonAmber,
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Text(
+                            text = "Anivarya Permissions zaroori hain!",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            color = Color.White
+                        )
+                        Text(
+                            text = if (!permissionsGranted) {
+                                "Background mein ringtone bajane aur calls pehchane ke liye Phone, Contacts aur Audio permissions dena anivarya hai."
+                            } else {
+                                "App ko background mein band hone se bachane ke liye Battery Optimization ko 'Unrestricted' (Disable) karna hoga."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.LightGray,
+                            fontSize = 14.sp
+                        )
+                        Button(
+                            onClick = {
+                                permissionsGranted = checkAllPermissions(context, requiredPermissions)
+                                batteryOptimizationIgnored = checkBatteryOptimization(context)
+
+                                if (!permissionsGranted) {
+                                    permissionLauncher.launch(requiredPermissions)
+                                } else if (!batteryOptimizationIgnored) {
+                                    requestBatteryOptimizationExemption(context)
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = NeonAmber),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Text(
+                                text = if (!permissionsGranted) "Permissions Allow Karein" else "Battery Optimization Off Karein",
+                                color = Color.Black,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun checkAllPermissions(context: Context, permissions: Array<String>): Boolean {
+    return permissions.all {
+        ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
+    }
+}
+
+private fun checkBatteryOptimization(context: Context): Boolean {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+        powerManager.isIgnoringBatteryOptimizations(context.packageName)
+    } else {
+        true
+    }
+}
+
+private fun requestBatteryOptimizationExemption(context: Context) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        try {
+            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                data = Uri.parse("package:${context.packageName}")
+            }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            try {
+                val fallbackIntent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                context.startActivity(fallbackIntent)
+            } catch (ex: Exception) {
+                ex.printStackTrace()
+            }
         }
     }
 }
@@ -578,49 +657,6 @@ fun CallSimulatorCard(
 }
 
 @Composable
-fun PermissionsCard(onRequestPermissions: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF3F2B0F))
-    ) {
-        Row(
-            modifier = Modifier.padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Default.Security,
-                contentDescription = null,
-                tint = NeonAmber,
-                modifier = Modifier.size(28.dp)
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Permissions Required",
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    fontSize = 14.sp
-                )
-                Text(
-                    text = "Grant Phone, Call Log, Contacts & Audio access for automatic ringtone switching.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.LightGray
-                )
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            Button(
-                onClick = onRequestPermissions,
-                colors = ButtonDefaults.buttonColors(containerColor = NeonAmber),
-                shape = RoundedCornerShape(20.dp)
-            ) {
-                Text("Grant", fontSize = 12.sp, color = Color.Black, fontWeight = FontWeight.Bold)
-            }
-        }
-    }
-}
-
-@Composable
 fun CallLogRow(log: CallLogItem) {
     val dateFormat = remember { SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault()) }
     val formattedTime = remember(log.timestamp) { dateFormat.format(Date(log.timestamp)) }
@@ -693,11 +729,5 @@ fun CallLogRow(log: CallLogItem) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-    }
-}
-
-private fun checkAllPermissions(context: Context, permissions: Array<String>): Boolean {
-    return permissions.all {
-        ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
     }
 }
