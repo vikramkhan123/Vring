@@ -51,6 +51,15 @@
             android:foregroundServiceType="mediaPlayback"
             android:exported="false" />
 
+        <!-- Broadcast Receiver for telephony state changes -->
+        <receiver
+            android:name=".receiver.PhoneStateReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PHONE_STATE" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
 </manifest>
