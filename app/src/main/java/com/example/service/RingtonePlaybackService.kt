@@ -116,16 +116,19 @@ class RingtonePlaybackService : Service() {
     private fun findMatchingVip(incomingNumber: String, vipContacts: List<VipContact>): VipContact? {
         if (incomingNumber.isBlank()) return null
         val normalizedIncoming = normalizePhoneNumber(incomingNumber)
+        
+        // Strict matching: Check if last 10 digits match perfectly without overlapping errors
         return vipContacts.find { vip ->
             val normalizedVip = normalizePhoneNumber(vip.phoneNumber)
-            normalizedVip.isNotBlank() && (
-                normalizedIncoming.endsWith(normalizedVip) || normalizedVip.endsWith(normalizedIncoming)
-            )
+            if (normalizedVip.isBlank() || normalizedIncoming.isBlank()) return@find false
+            
+            normalizedIncoming == normalizedVip || 
+            (normalizedIncoming.length >= 10 && normalizedVip.length >= 10 && normalizedIncoming.takeLast(10) == normalizedVip.takeLast(10))
         }
     }
 
     private fun normalizePhoneNumber(number: String): String {
-        return number.replace(Regex("[^0-9]"), "").takeLast(10)
+        return number.replace(Regex("[^0-9]"), "")
     }
 
     private suspend fun selectGeneralTrack(
