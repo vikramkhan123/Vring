@@ -11,7 +11,6 @@ import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Build
 import android.os.IBinder
-import android.telephony.TelephonyManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.MainActivity
@@ -66,7 +65,6 @@ class RingtonePlaybackService : Service() {
                 return@launch
             }
 
-            // Save original ring volume permanently & mute system stream
             muteSystemRingtone()
 
             val vipContacts = repository.getVipContactsSync()
@@ -105,7 +103,11 @@ class RingtonePlaybackService : Service() {
 
             withContext(Dispatchers.Main) {
                 val notification = createNotification(callerDisplayName, selectedAudioTitle, isVipCall)
-                startForeground(NOTIFICATION_ID, notification)
+                try {
+                    startForeground(NOTIFICATION_ID, notification)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error starting foreground service", e)
+                }
                 playAudioTrack(selectedAudioUri)
             }
         }
@@ -142,18 +144,14 @@ class RingtonePlaybackService : Service() {
         }
     }
 
-    // NAYA LOGIC: Volume ko permanent memory mein save karna
     private fun muteSystemRingtone() {
         try {
             audioManager?.let { am ->
                 val prefs = getSharedPreferences("ringtone_prefs", Context.MODE_PRIVATE)
                 val currentVol = am.getStreamVolume(AudioManager.STREAM_RING)
-                
-                // Volume agar 0 se zyada hai, tabhi save karein
                 if (currentVol > 0) {
                     prefs.edit().putInt("original_ring_volume", currentVol).apply()
                     am.setStreamVolume(AudioManager.STREAM_RING, 0, 0)
-                    Log.d(TAG, "Muted system ringtone. Original volume ($currentVol) saved.")
                 }
             }
         } catch (e: Exception) {
@@ -161,17 +159,14 @@ class RingtonePlaybackService : Service() {
         }
     }
 
-    // NAYA LOGIC: Volume ko permanent memory se nikal kar wapas restore karna
     private fun restoreSystemRingtone() {
         try {
             audioManager?.let { am ->
                 val prefs = getSharedPreferences("ringtone_prefs", Context.MODE_PRIVATE)
                 val savedVol = prefs.getInt("original_ring_volume", -1)
-                
                 if (savedVol > 0) {
                     am.setStreamVolume(AudioManager.STREAM_RING, savedVol, 0)
                     prefs.edit().remove("original_ring_volume").apply()
-                    Log.d(TAG, "Restored system ringtone to volume: $savedVol")
                 }
             }
         } catch (e: Exception) {
@@ -185,7 +180,7 @@ class RingtonePlaybackService : Service() {
             mediaPlayer = MediaPlayer().apply {
                 setAudioAttributes(
                     AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ALARM) // Alarm Stream Use Kiya Gaya Hai
+                        .setUsage(AudioAttributes.USAGE_ALARM)
                         .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
                         .build()
                 )
@@ -194,9 +189,8 @@ class RingtonePlaybackService : Service() {
                 prepare()
                 start()
             }
-            Log.d(TAG, "Playing ringtone audio: $uri")
         } catch (e: Exception) {
-            Log.e(TAG, "Error initializing MediaPlayer for URI $uri", e)
+            Log.e(TAG, "Error initializing MediaPlayer", e)
             try {
                 val defaultUri = android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_RINGTONE)
                 mediaPlayer = MediaPlayer().apply {
@@ -212,7 +206,7 @@ class RingtonePlaybackService : Service() {
                     start()
                 }
             } catch (fallbackError: Exception) {
-                Log.e(TAG, "Fallback ringtone failed as well", fallbackError)
+                Log.e(TAG, "Fallback ringtone failed", fallbackError)
             }
         }
     }
@@ -231,7 +225,11 @@ class RingtonePlaybackService : Service() {
     private fun stopPlaybackAndService() {
         stopPlaybackOnly()
         restoreSystemRingtone()
-        stopForeground(STOP_FOREGROUND_REMOVE)
+        try {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         stopSelf()
     }
 
@@ -261,7 +259,7 @@ class RingtonePlaybackService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         stopPlaybackOnly()
-        restoreSystemRingtone() // Ek baar yahan bhi ensure karega
+        restoreSystemRingtone()
         serviceJob.cancel()
     }
 
@@ -281,7 +279,11 @@ class RingtonePlaybackService : Service() {
                 putExtra(EXTRA_INCOMING_NUMBER, incomingNumber)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
+                try {
+                    context.startForegroundService(intent)
+                } catch (e: Exception) {
+                    context.startService(intent)
+                }
             } else {
                 context.startService(intent)
             }
@@ -291,7 +293,11 @@ class RingtonePlaybackService : Service() {
             val intent = Intent(context, RingtonePlaybackService::class.java).apply {
                 action = ACTION_STOP
             }
-            context.startService(intent)
+            try {
+                context.startService(intent)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 }
