@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Security
@@ -120,11 +121,10 @@ fun HomeScreen(
     ) { results ->
         permissionsGranted = results.values.all { it }
         if (!permissionsGranted) {
-            Toast.makeText(context, "App ko chalane ke liye saari permissions dena anivarya hai!", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "All permissions are mandatory for the app to work!", Toast.LENGTH_LONG).show()
         }
     }
 
-    // Har baar app foreground mein aane par check karega ki permissions hain ya nahi
     LaunchedEffect(Unit) {
         permissionsGranted = checkAllPermissions(context, requiredPermissions)
         batteryOptimizationIgnored = checkBatteryOptimization(context)
@@ -148,6 +148,22 @@ fun HomeScreen(
                 HeroHeaderCard(
                     masterEnabled = uiState.config.masterEnabled,
                     onToggleMaster = { viewModel.toggleMasterEnabled(it) }
+                )
+            }
+
+            // NEW: Background Protection Guide Card for User
+            item {
+                BackgroundProtectionCard(
+                    onOpenSettings = {
+                        try {
+                            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                data = Uri.parse("package:${context.packageName}")
+                            }
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
                 )
             }
 
@@ -226,7 +242,7 @@ fun HomeScreen(
             }
         }
 
-        // MANDATORY OVERLAY LOCK: Jab tak permissions ya battery optimization nahi milegi, ye screen ke upar rahega aur user kuch touch nahi kar payega
+        // ENGLISH MANDATORY LOCK SCREEN
         if (!permissionsGranted || !batteryOptimizationIgnored) {
             Box(
                 modifier = Modifier
@@ -251,20 +267,21 @@ fun HomeScreen(
                             modifier = Modifier.size(48.dp)
                         )
                         Text(
-                            text = "Anivarya Permissions zaroori hain!",
+                            text = "Mandatory Action Required",
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp,
                             color = Color.White
                         )
                         Text(
                             text = if (!permissionsGranted) {
-                                "Background mein ringtone bajane aur calls pehchane ke liye Phone, Contacts aur Audio permissions dena anivarya hai."
+                                "To detect incoming calls and play custom ringtones, you must grant Phone, Contacts, and Audio permissions."
                             } else {
-                                "App ko background mein band hone se bachane ke liye Battery Optimization ko 'Unrestricted' (Disable) karna hoga."
+                                "To prevent the Android system from killing this app in the background, you must disable Battery Optimization (set to 'Unrestricted')."
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = Color.LightGray,
-                            fontSize = 14.sp
+                            fontSize = 14.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
                         Button(
                             onClick = {
@@ -282,13 +299,58 @@ fun HomeScreen(
                             shape = RoundedCornerShape(14.dp)
                         ) {
                             Text(
-                                text = if (!permissionsGranted) "Permissions Allow Karein" else "Battery Optimization Off Karein",
+                                text = if (!permissionsGranted) "Grant Permissions" else "Disable Battery Optimization",
                                 color = Color.Black,
                                 fontWeight = FontWeight.Bold
                             )
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+// NEW: Background Protection Guide Card Composable
+@Composable
+fun BackgroundProtectionCard(onOpenSettings: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1B4B))
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.LockOpen,
+                contentDescription = null,
+                tint = NeonCyan,
+                modifier = Modifier.size(28.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Keep App Alive in Background",
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    fontSize = 14.sp
+                )
+                Text(
+                    text = "To ensure ringtones play even after clearing recents, enable 'Autostart' and set Battery to 'Unrestricted' in App Info.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.LightGray,
+                    fontSize = 12.sp
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(
+                onClick = onOpenSettings,
+                colors = ButtonDefaults.buttonColors(containerColor = NeonCyan),
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                Text("Settings", fontSize = 11.sp, color = Color.Black, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -703,12 +765,12 @@ fun CallLogRow(log: CallLogItem) {
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         if (log.isVip) {
-                            Spacer(modifier = Modifier.width(6.dp))
+                            Spacer(modifier =ListItemSpacingFix = 6.dp)
                             Text(
                                 text = "VIP",
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.ExtraBold,
-                                color = NeonAmber,
+                                color =NeonAmber,
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(4.dp))
                                     .background(NeonAmber.copy(alpha = 0.2f))
