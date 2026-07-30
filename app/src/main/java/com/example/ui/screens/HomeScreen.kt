@@ -765,12 +765,12 @@ fun CallLogRow(log: CallLogItem) {
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         if (log.isVip) {
-                            Spacer(modifier =ListItemSpacingFix = 6.dp)
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "VIP",
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.ExtraBold,
-                                color =NeonAmber,
+                                color = NeonAmber,
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(4.dp))
                                     .background(NeonAmber.copy(alpha = 0.2f))
