@@ -70,7 +70,7 @@ class RingtonePlaybackService : Service() {
             val vipContacts = repository.getVipContactsSync()
             val generalTracks = repository.getGeneralTracksSync()
 
-            // THIS WILL ONLY MATCH IF IT IS THE EXACT VIP NUMBER
+            // STRICT VIP MATCHING
             val matchedVip = findMatchingVip(incomingNumber, vipContacts)
 
             var selectedAudioUri: Uri? = null
@@ -130,7 +130,7 @@ class RingtonePlaybackService : Service() {
         }
     }
 
-    // NEW STRICT MATCHING LOGIC
+    // STRICT MATCHING LOGIC: Checks exactly the last 10 digits
     private fun findMatchingVip(incomingNumber: String, vipContacts: List<VipContact>): VipContact? {
         val cleanIncoming = incomingNumber.replace(Regex("[^0-9]"), "")
         if (cleanIncoming.isBlank()) return null
