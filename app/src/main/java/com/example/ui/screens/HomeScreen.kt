@@ -28,8 +28,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.LockOpen
@@ -45,9 +43,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -65,6 +60,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -90,7 +86,6 @@ fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    var simInputNumber by remember { mutableStateOf("+15551234567") }
 
     val requiredPermissions = remember {
         val permissions = mutableListOf(
@@ -125,14 +120,13 @@ fun HomeScreen(
         }
     }
 
+    // Real-time check on every composition/resume
     LaunchedEffect(Unit) {
         permissionsGranted = checkAllPermissions(context, requiredPermissions)
         batteryOptimizationIgnored = checkBatteryOptimization(context)
         
         if (!permissionsGranted) {
             permissionLauncher.launch(requiredPermissions)
-        } else if (!batteryOptimizationIgnored) {
-            requestBatteryOptimizationExemption(context)
         }
     }
 
@@ -151,20 +145,22 @@ fun HomeScreen(
                 )
             }
 
-            // NEW: Background Protection Guide Card for User
-            item {
-                BackgroundProtectionCard(
-                    onOpenSettings = {
-                        try {
-                            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                data = Uri.parse("package:${context.packageName}")
+            // Show Settings Guide Card only if Battery Optimization is NOT disabled yet
+            if (!batteryOptimizationIgnored) {
+                item {
+                    BackgroundProtectionCard(
+                        onOpenSettings = {
+                            try {
+                                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                    data = Uri.parse("package:${context.packageName}")
+                                }
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                e.printStackTrace()
                             }
-                            context.startActivity(intent)
-                        } catch (e: Exception) {
-                            e.printStackTrace()
                         }
-                    }
-                )
+                    )
+                }
             }
 
             item {
@@ -172,22 +168,6 @@ fun HomeScreen(
                     generalCount = uiState.generalTracks.size,
                     vipCount = uiState.vipContacts.size,
                     playbackMode = uiState.config.playbackMode
-                )
-            }
-
-            item {
-                CallSimulatorCard(
-                    isSimulating = uiState.isSimulatingCall,
-                    simulatedNumber = uiState.simulatedNumber,
-                    simInputNumber = simInputNumber,
-                    onNumberChange = { simInputNumber = it },
-                    vipContacts = uiState.vipContacts,
-                    onSimulateCall = { number ->
-                        viewModel.simulateIncomingCall(context, number)
-                    },
-                    onStopCall = {
-                        viewModel.stopSimulatedCall(context)
-                    }
                 )
             }
 
@@ -223,7 +203,7 @@ fun HomeScreen(
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Text(
-                            text = "No incoming calls intercepted yet.\nUse the simulator above to test custom ringtones!",
+                            text = "No incoming calls intercepted yet.\nCustom ringtones will play automatically on incoming calls!",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(16.dp),
@@ -242,8 +222,8 @@ fun HomeScreen(
             }
         }
 
-        // ENGLISH MANDATORY LOCK SCREEN
-        if (!permissionsGranted || !batteryOptimizationIgnored) {
+        // MANDATORY PERMISSION LOCK SCREEN (Disappears automatically once permissions are granted)
+        if (!permissionsGranted) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -273,25 +253,17 @@ fun HomeScreen(
                             color = Color.White
                         )
                         Text(
-                            text = if (!permissionsGranted) {
-                                "To detect incoming calls and play custom ringtones, you must grant Phone, Contacts, and Audio permissions."
-                            } else {
-                                "To prevent the Android system from killing this app in the background, you must disable Battery Optimization (set to 'Unrestricted')."
-                            },
+                            text = "To detect incoming calls and play custom ringtones, you must grant Phone, Contacts, and Audio permissions.",
                             style = MaterialTheme.typography.bodySmall,
                             color = Color.LightGray,
                             fontSize = 14.sp,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            textAlign = TextAlign.Center
                         )
                         Button(
                             onClick = {
                                 permissionsGranted = checkAllPermissions(context, requiredPermissions)
-                                batteryOptimizationIgnored = checkBatteryOptimization(context)
-
                                 if (!permissionsGranted) {
                                     permissionLauncher.launch(requiredPermissions)
-                                } else if (!batteryOptimizationIgnored) {
-                                    requestBatteryOptimizationExemption(context)
                                 }
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = NeonAmber),
@@ -299,7 +271,7 @@ fun HomeScreen(
                             shape = RoundedCornerShape(14.dp)
                         ) {
                             Text(
-                                text = if (!permissionsGranted) "Grant Permissions" else "Disable Battery Optimization",
+                                text = "Grant Permissions",
                                 color = Color.Black,
                                 fontWeight = FontWeight.Bold
                             )
@@ -311,7 +283,6 @@ fun HomeScreen(
     }
 }
 
-// NEW: Background Protection Guide Card Composable
 @Composable
 fun BackgroundProtectionCard(onOpenSettings: () -> Unit) {
     Card(
@@ -338,7 +309,7 @@ fun BackgroundProtectionCard(onOpenSettings: () -> Unit) {
                     fontSize = 14.sp
                 )
                 Text(
-                    text = "To ensure ringtones play even after clearing recents, enable 'Autostart' and set Battery to 'Unrestricted' in App Info.",
+                    text = "Enable 'Autostart' and set Battery to 'Unrestricted' in App Info so ringtones play reliably.",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.LightGray,
                     fontSize = 12.sp
@@ -371,24 +342,6 @@ private fun checkBatteryOptimization(context: Context): Boolean {
     }
 }
 
-private fun requestBatteryOptimizationExemption(context: Context) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-        try {
-            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                data = Uri.parse("package:${context.packageName}")
-            }
-            context.startActivity(intent)
-        } catch (e: Exception) {
-            try {
-                val fallbackIntent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                context.startActivity(fallbackIntent)
-            } catch (ex: Exception) {
-                ex.printStackTrace()
-            }
-        }
-    }
-}
-
 @Composable
 fun HeroHeaderCard(masterEnabled: Boolean, onToggleMaster: (Boolean) -> Unit) {
     Card(
@@ -404,7 +357,7 @@ fun HeroHeaderCard(masterEnabled: Boolean, onToggleMaster: (Boolean) -> Unit) {
                         colors = if (masterEnabled) listOf(Color(0xFF3B0764), Color(0xFF1E1B4B)) else listOf(Color(0xFF1F2937), Color(0xFF111827))
                     )
                 )
-                .padding(20.dp)
+                .padding(16.dp)
         ) {
             Column {
                 Row(
@@ -412,10 +365,13 @@ fun HeroHeaderCard(masterEnabled: Boolean, onToggleMaster: (Boolean) -> Unit) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
                         Box(
                             modifier = Modifier
-                                .size(44.dp)
+                                .size(40.dp)
                                 .clip(CircleShape)
                                 .background(if (masterEnabled) NeonViolet else Color.Gray),
                             contentAlignment = Alignment.Center
@@ -424,27 +380,30 @@ fun HeroHeaderCard(masterEnabled: Boolean, onToggleMaster: (Boolean) -> Unit) {
                                 imageVector = Icons.Default.GraphicEq,
                                 contentDescription = null,
                                 tint = Color.White,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(22.dp)
                             )
                         }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "Dynamic Ringtone",
-                                style = MaterialTheme.typography.titleLarge,
+                                style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = Color.White,
+                                maxLines = 1
                             )
                             Text(
-                                text = "Call Interceptor & Switcher",
+                                text = "Call Interceptor",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = NeonCyan
+                                color = NeonCyan,
+                                maxLines = 1
                             )
                         }
                     }
+                    Spacer(modifier = Modifier.width(8.dp))
                     StatusBadge(active = masterEnabled)
                 }
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 Surface(
                     color = Color.Black.copy(alpha = 0.3f),
                     shape = RoundedCornerShape(16.dp),
@@ -453,32 +412,38 @@ fun HeroHeaderCard(masterEnabled: Boolean, onToggleMaster: (Boolean) -> Unit) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.PowerSettingsNew,
                                 contentDescription = null,
                                 tint = if (masterEnabled) NeonGreen else Color.LightGray,
-                                modifier = Modifier.size(22.dp)
+                                modifier = Modifier.size(20.dp)
                             )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = "Master Interceptor",
                                     fontWeight = FontWeight.SemiBold,
-                                    fontSize = 15.sp,
-                                    color = Color.White
+                                    fontSize = 14.sp,
+                                    color = Color.White,
+                                    maxLines = 1
                                 )
                                 Text(
-                                    text = if (masterEnabled) "Mutes system ring & plays custom audio" else "App paused (system ringtone plays)",
-                                    fontSize = 12.sp,
-                                    color = Color.LightGray
+                                    text = if (masterEnabled) "Custom audio active" else "Paused",
+                                    fontSize = 11.sp,
+                                    color = Color.LightGray,
+                                    maxLines = 1
                                 )
                             }
                         }
+                        Spacer(modifier = Modifier.width(8.dp))
                         Switch(
                             checked = masterEnabled,
                             onCheckedChange = onToggleMaster,
@@ -576,143 +541,6 @@ fun OverviewSummaryGrid(generalCount: Int, vipCount: Int, playbackMode: String) 
                     fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-            }
-        }
-    }
-}
-
-@Composable
-fun CallSimulatorCard(
-    isSimulating: Boolean,
-    simulatedNumber: String,
-    simInputNumber: String,
-    onNumberChange: (String) -> Unit,
-    vipContacts: List<com.example.data.VipContact>,
-    onSimulateCall: (String) -> Unit,
-    onStopCall: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(NeonPink.copy(alpha = 0.2f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Call,
-                            contentDescription = null,
-                            tint = NeonPink,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = "Call Simulator & Tester",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                if (isSimulating) {
-                    StatusBadge(active = true, activeText = "RINGING")
-                }
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = "Simulate an incoming call directly inside the app to test instantaneous ringtone switching and muting logic.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            if (isSimulating) {
-                Surface(
-                    color = Color(0xFF831843),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(14.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "Simulated Incoming Call Ringing...",
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Text(
-                            text = "From: $simulatedNumber",
-                            fontSize = 13.sp,
-                            color = NeonCyan
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Button(
-                            onClick = onStopCall,
-                            colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
-                            shape = RoundedCornerShape(20.dp)
-                        ) {
-                            Icon(imageVector = Icons.Default.CallEnd, contentDescription = null)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Hang Up / Stop Audio")
-                        }
-                    }
-                }
-            } else {
-                OutlinedTextField(
-                    value = simInputNumber,
-                    onValueChange = onNumberChange,
-                    label = { Text("Incoming Phone Number") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = NeonViolet,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                    )
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        onClick = { onSimulateCall(simInputNumber) },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = NeonViolet),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("Simulate Call", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    }
-                    if (vipContacts.isNotEmpty()) {
-                        OutlinedButton(
-                            onClick = {
-                                val vip = vipContacts.first()
-                                onSimulateCall(vip.phoneNumber)
-                            },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Star,
-                                contentDescription = null,
-                                tint = NeonAmber,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Test VIP", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
             }
         }
     }
