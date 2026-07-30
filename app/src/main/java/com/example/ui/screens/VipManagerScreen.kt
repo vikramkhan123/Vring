@@ -171,7 +171,7 @@ fun VipManagerScreen(
                             fontSize = 14.sp
                         )
                         Text(
-                            text = "On incoming calls, VIP contacts play their assigned track first. If caller is non-VIP, song is chosen from General Playlist.",
+                            text = "On incoming calls, VIP contacts play their assigned track first. Non-VIP callers play tracks from the General Playlist.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -187,9 +187,7 @@ fun VipManagerScreen(
             ) {
                 Button(
                     onClick = {
-                        if (vipContacts.size >= maxLimit) {
-                            viewModel.addVipContact("", "", "") 
-                        } else {
+                        if (vipContacts.size < maxLimit) {
                             try {
                                 contactPickerLauncher.launch(null)
                             } catch (e: Exception) {
@@ -220,9 +218,7 @@ fun VipManagerScreen(
 
                 OutlinedButton(
                     onClick = {
-                        if (vipContacts.size >= maxLimit) {
-                            viewModel.addVipContact("", "", "")
-                        } else {
+                        if (vipContacts.size < maxLimit) {
                             showAddDialog = true
                         }
                     },
@@ -238,15 +234,35 @@ fun VipManagerScreen(
 
         if (vipContacts.isEmpty()) {
             item {
-                EmptyStateCard(
-                    title = "No VIP Contacts Added",
-                    description = "Pick up to 5 VIP contacts and assign a unique ringtone.",
-                    icon = Icons.Default.StarBorder,
-                    actionLabel = "Add Demo VIP Contact",
-                    onAction = {
-                        viewModel.addVipContact("demo_1", "Mom (VIP Demo)", "+15551234567")
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.StarBorder,
+                            contentDescription = null,
+                            tint = NeonAmber,
+                            modifier = Modifier.size(36.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "No VIP Contacts Added",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+                        Text(
+                            text = "Use the buttons above to add VIP contacts and assign unique ringtones.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
                     }
-                )
+                }
             }
         } else {
             items(vipContacts, key = { it.id }) { vip ->
@@ -556,7 +572,7 @@ private fun extractContactDetails(context: Context, contactUri: Uri): Triple<Str
         }
     } catch (e: SecurityException) {
         e.printStackTrace()
-        Toast.makeText(context, "Permission Denied! Contacts permission allow karein.", Toast.LENGTH_LONG).show()
+        Toast.makeText(context, "Permission Denied! Please allow contacts permission.", Toast.LENGTH_LONG).show()
         return null
     } catch (e: Exception) {
         e.printStackTrace()
