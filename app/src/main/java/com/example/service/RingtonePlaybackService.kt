@@ -70,22 +70,39 @@ class RingtonePlaybackService : Service() {
             val vipContacts = repository.getVipContactsSync()
             val generalTracks = repository.getGeneralTracksSync()
 
+            // THIS WILL ONLY MATCH IF IT IS THE EXACT VIP NUMBER
             val matchedVip = findMatchingVip(incomingNumber, vipContacts)
 
             var selectedAudioUri: Uri? = null
             var selectedAudioTitle = "Default Ringtone"
             var isVipCall = false
-            var callerDisplayName = matchedVip?.name ?: if (incomingNumber.isNotBlank()) incomingNumber else "Unknown Caller"
+            var callerDisplayName = if (incomingNumber.isNotBlank()) incomingNumber else "Unknown Caller"
 
-            if (matchedVip != null && !matchedVip.audioUriString.isNull_or_blank()) {
+            if (matchedVip != null) {
+                // IT IS A VIP CALL
                 isVipCall = true
-                selectedAudioUri = Uri.parse(matchedVip.audioUriString)
-                selectedAudioTitle = matchedVip.audioTitle ?: "VIP Custom Ringtone"
-            } else if (generalTracks.isNotEmpty()) {
-                val trackToPlay = selectGeneralTrack(config.playbackMode, config.lastPlayedIndex, generalTracks)
-                if (trackToPlay != null) {
-                    selectedAudioUri = Uri.parse(trackToPlay.uriString)
-                    selectedAudioTitle = trackToPlay.title
+                callerDisplayName = matchedVip.name
+                
+                if (!matchedVip.audioUriString.isNull_or_blank()) {
+                    // Play THEIR specific song
+                    selectedAudioUri = Uri.parse(matchedVip.audioUriString)
+                    selectedAudioTitle = matchedVip.audioTitle ?: "VIP Custom Ringtone"
+                } else {
+                    // VIP found but no song assigned, fall back to general
+                    val trackToPlay = selectGeneralTrack(config.playbackMode, config.lastPlayedIndex, generalTracks)
+                    if (trackToPlay != null) {
+                        selectedAudioUri = Uri.parse(trackToPlay.uriString)
+                        selectedAudioTitle = trackToPlay.title
+                    }
+                }
+            } else {
+                // IT IS A GENERAL CALL (Not in VIP list)
+                if (generalTracks.isNotEmpty()) {
+                    val trackToPlay = selectGeneralTrack(config.playbackMode, config.lastPlayedIndex, generalTracks)
+                    if (trackToPlay != null) {
+                        selectedAudioUri = Uri.parse(trackToPlay.uriString)
+                        selectedAudioTitle = trackToPlay.title
+                    }
                 }
             }
 
@@ -113,22 +130,25 @@ class RingtonePlaybackService : Service() {
         }
     }
 
+    // NEW STRICT MATCHING LOGIC
     private fun findMatchingVip(incomingNumber: String, vipContacts: List<VipContact>): VipContact? {
-        if (incomingNumber.isBlank()) return null
-        val normalizedIncoming = normalizePhoneNumber(incomingNumber)
-        
-        // Strict matching: Check if last 10 digits match perfectly without overlapping errors
-        return vipContacts.find { vip ->
-            val normalizedVip = normalizePhoneNumber(vip.phoneNumber)
-            if (normalizedVip.isBlank() || normalizedIncoming.isBlank()) return@find false
-            
-            normalizedIncoming == normalizedVip || 
-            (normalizedIncoming.length >= 10 && normalizedVip.length >= 10 && normalizedIncoming.takeLast(10) == normalizedVip.takeLast(10))
-        }
-    }
+        val cleanIncoming = incomingNumber.replace(Regex("[^0-9]"), "")
+        if (cleanIncoming.isBlank()) return null
 
-    private fun normalizePhoneNumber(number: String): String {
-        return number.replace(Regex("[^0-9]"), "")
+        // Extract last 10 digits for strict matching
+        val incomingLast10 = if (cleanIncoming.length >= 10) cleanIncoming.takeLast(10) else cleanIncoming
+
+        for (vip in vipContacts) {
+            val cleanVip = vip.phoneNumber.replace(Regex("[^0-9]"), "")
+            if (cleanVip.isBlank()) continue
+
+            val vipLast10 = if (cleanVip.length >= 10) cleanVip.takeLast(10) else cleanVip
+
+            if (incomingLast10 == vipLast10) {
+                return vip // Exact 10-digit match found
+            }
+        }
+        return null
     }
 
     private suspend fun selectGeneralTrack(
